@@ -29,24 +29,36 @@ class scheduler_export_form extends moodleform {
 
         $mform = $this->_form;
 
-        // General introduction.
-        $mform->addElement('header', 'general', get_string('general', 'form'));
-
         // Select data to export.
         $mform->addElement('header', 'general', get_string('dataselect', 'scheduler'));
+
+		$mform->addElement('advcheckbox', 'field-date', 'slot date', null, array('group' => 1));
+		$mform->addElement('advcheckbox', 'field-starttime', 'start time', null, array('group' => 1));
+		$mform->addElement('advcheckbox', 'field-endtime', 'end time', null, array('group' => 1));
+		$mform->addElement('advcheckbox', 'field-studentfirstname', 'student first name', null, array('group' => 1));
+		$mform->addElement('advcheckbox', 'field-studentlastname',  'student last name', null, array('group' => 1));
+		$mform->addElement('advcheckbox', 'field-studentfullname',  'student full name', null, array('group' => 1));
+		$mform->addElement('advcheckbox', 'field-studentidnumber',  'student id number', null, array('group' => 1));
+		$mform->addElement('advcheckbox', 'field-studentemail',     'student e-mail', null, array('group' => 1));
+		$mform->addElement('advcheckbox', 'field-slotcomments',     'slot comments', null, array('group' => 1));
+		$mform->addElement('advcheckbox', 'field-appointmentcomments', 'appointment comments', null, array('group' => 1));
+		$this->add_checkbox_controller(1);
 
         // Output format
         $mform->addElement('header', 'general', get_string('outputformat', 'scheduler'));
 
         $mform->addElement('radio', 'outputformat', get_string('csvformat', 'scheduler'), '', 'csv');
+        $sepoptions = array('tab' => get_string('septab', 'grades'),
+            			   'comma' => get_string('sepcomma', 'grades'),
+            			   'colon' => get_string('sepcolon', 'grades'),
+            			   'semicolon' => get_string('sepsemicolon', 'grades')
+           				   );
+        $mform->addElement('select', 'csvseparator', get_string('separator', 'scheduler'), $sepoptions);
+		$mform->disabledIf('csvseparator', 'outputformat', 'neq', 'csv');
+
         $mform->addElement('radio', 'outputformat', get_string('excelformat', 'scheduler'), '', 'xls');
         $mform->addElement('radio', 'outputformat', get_string('odsformat', 'scheduler'), '', 'ods');
         $mform->addElement('radio', 'outputformat', get_string('pdfformat', 'scheduler'), '', 'pdf');
-
-        // Start date/time of the slot
-        $mform->addElement('date_time_selector', 'starttime', get_string('date', 'scheduler'));
-        $mform->setDefault('starttime', time());
-        $mform->addHelpButton('starttime', 'choosingslotstart', 'scheduler');
 
 
         $this->add_action_buttons();
