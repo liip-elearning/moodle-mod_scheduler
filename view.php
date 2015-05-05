@@ -81,6 +81,8 @@ if (has_capability('mod/scheduler:manage', $context)) {
         include($CFG->dirroot.'/mod/scheduler/viewstudent.php');
     } else if ($action == 'downloads' || $action == 'dodownloadcsv') {
         include($CFG->dirroot.'/mod/scheduler/downloads.php');
+    } else if ($action == 'export') {
+        include($CFG->dirroot.'/mod/scheduler/export.php');
     } else if ($action == 'datelist') {
         include($CFG->dirroot.'/mod/scheduler/datelist.php');
     } else {
