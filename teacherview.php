@@ -3,9 +3,8 @@
 /**
  * Contains various sub-screens that a teacher can see.
  *
- * @package    mod
- * @subpackage scheduler
- * @copyright  2014 Henning Bostelmann and others (see README.txt)
+ * @package    mod_scheduler
+ * @copyright  2016 Henning Bostelmann and others (see README.txt)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -13,12 +12,19 @@ defined('MOODLE_INTERNAL') || die();
 
 function scheduler_prepare_formdata(scheduler_slot $slot) {
 
+    $context = $slot->get_scheduler()->get_context();
+    $noteoptions = array('trusttext' => true, 'maxfiles' => -1, 'maxbytes' => 0,
+                         'context' => $context, 'subdirs' => false);
+
     $data = $slot->get_data();
     $data->exclusivityenable = ($data->exclusivity > 0);
 
+    $data = file_prepare_standard_editor($data, "notes", $noteoptions, $context,
+                                         'mod_scheduler', 'slotnote', $slot->id);
     $data->notes = array();
     $data->notes['text'] = $slot->notes;
     $data->notes['format'] = $slot->notesformat;
+
     if ($slot->emaildate < 0) {
         $data->emaildate = 0;
     }
@@ -27,35 +33,56 @@ function scheduler_prepare_formdata(scheduler_slot $slot) {
     foreach ($slot->get_appointments() as $appointment) {
         $data->studentid[$i] = $appointment->studentid;
         $data->attended[$i] = $appointment->attended;
-        $data->appointmentnote[$i]['text'] = $appointment->appointmentnote;
-        $data->appointmentnote[$i]['format'] = $appointment->appointmentnoteformat;
+
+        $draftid = file_get_submitted_draft_itemid('appointmentnote');
+        $currenttext = file_prepare_draft_area($draftid, $context->id,
+                                               'mod_scheduler', 'appointmentnote', $appointment->id,
+                                               $noteoptions, $appointment->appointmentnote);
+        $data->appointmentnote_editor[$i] = array('text' => $currenttext, 'format' => $appointment->appointmentnoteformat,
+                                                  'itemid' => $draftid);
+
+        $draftid = file_get_submitted_draft_itemid('teachernote');
+        $currenttext = file_prepare_draft_area($draftid, $context->id,
+                                               'mod_scheduler', 'teachernote', $appointment->id,
+                                               $noteoptions, $appointment->teachernote);
+        $data->teachernote_editor[$i] = array('text' => $currenttext, 'format' => $appointment->teachernoteformat,
+                                              'itemid' => $draftid);
+
         $data->grade[$i] = $appointment->grade;
         $i++;
     }
+
     return $data;
 }
 
 function scheduler_save_slotform(scheduler_instance $scheduler, $course, $slotid, $data) {
 
-    global $DB;
+    $context = $scheduler->get_context();
 
     if ($slotid) {
         $slot = scheduler_slot::load_by_id($slotid, $scheduler);
     } else {
         $slot = new scheduler_slot($scheduler);
+        $slot->save();
     }
+
+    $noteoptions = array('trusttext' => true, 'maxfiles' => -1, 'maxbytes' => 0,
+            'context' => $context, 'subdirs' => false);
 
     // Set data fields from input form.
     $slot->starttime = $data->starttime;
     $slot->duration = $data->duration;
     $slot->exclusivity = $data->exclusivityenable ? $data->exclusivity : 0;
     $slot->teacherid = $data->teacherid;
-    $slot->notes = $data->notes['text'];
-    $slot->notesformat = $data->notes['format'];
     $slot->appointmentlocation = $data->appointmentlocation;
     $slot->hideuntil = $data->hideuntil;
     $slot->emaildate = $data->emaildate;
     $slot->timemodified = time();
+
+    $editor = $data->notes_editor;
+    $slot->notes = file_save_draft_area_files($editor['itemid'], $context->id, 'mod_scheduler', 'slotnote', $slotid,
+                                              $noteoptions, $editor['text']);
+    $slot->notesformat = $editor['format'];
 
     $currentapps = $slot->get_appointments();
     $processedstuds = array();
@@ -71,13 +98,28 @@ function scheduler_save_slotform(scheduler_instance $scheduler, $course, $slotid
             if ($app == null) {
                 $app = $slot->create_appointment();
                 $app->studentid = $data->studentid[$i];
+                $app->save();
             }
             $app->attended = isset($data->attended[$i]);
-            $app->appointmentnote = $data->appointmentnote[$i]['text'];
-            $app->appointmentnoteformat = $data->appointmentnote[$i]['format'];
+
             if (isset($data->grade)) {
                 $selgrade = $data->grade[$i];
                 $app->grade = ($selgrade >= 0) ? $selgrade : null;
+            }
+
+            if ($scheduler->uses_appointmentnotes()) {
+                $editor = $data->appointmentnote_editor[$i];
+                $app->appointmentnote = file_save_draft_area_files($editor['itemid'], $context->id,
+                                'mod_scheduler', 'appointmentnote', $app->id,
+                                $noteoptions, $editor['text']);
+                $app->appointmentnoteformat = $editor['format'];
+            }
+            if ($scheduler->uses_teachernotes()) {
+                $editor = $data->teachernote_editor[$i];
+                $app->teachernote = file_save_draft_area_files($editor['itemid'], $context->id,
+                                'mod_scheduler', 'teachernote', $app->id,
+                                $noteoptions, $editor['text']);
+                $app->teachernoteformat = $editor['format'];
             }
         }
     }

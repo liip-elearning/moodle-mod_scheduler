@@ -128,35 +128,39 @@ class scheduler_editslot_form extends scheduler_slotform_base {
             $this->slotid = $this->_customdata['slotid'];
         }
 
-        // Start date/time of the slot
+        $noteoptions = array('trusttext' => true, 'maxfiles' => -1, 'maxbytes' => 0,
+                'context' => $this->scheduler->get_context(),
+                'subdirs' => false, 'collapsed' => true);
+
+        // Start date/time of the slot.
         $mform->addElement('date_time_selector', 'starttime', get_string('date', 'scheduler'));
         $mform->setDefault('starttime', time());
         $mform->addHelpButton('starttime', 'choosingslotstart', 'scheduler');
 
-        // Duration of the slot
+        // Duration of the slot.
         $this->add_duration_field();
 
-        // Ignore conflict checkbox
+        // Ignore conflict checkbox.
         $mform->addElement('checkbox', 'ignoreconflicts', get_string('ignoreconflicts', 'scheduler'));
         $mform->setDefault('ignoreconflicts', false);
         $mform->addHelpButton('ignoreconflicts', 'ignoreconflicts', 'scheduler');
 
-        // Common fields
+        // Common fields.
         $this->add_base_fields();
 
-        // Display slot from date
+        // Display slot from this date.
         $mform->addElement('date_selector', 'hideuntil', get_string('displayfrom', 'scheduler'));
         $mform->setDefault('hideuntil', time());
 
-        // Send e-mail reminder
+        // Send e-mail reminder?
         $mform->addElement('date_selector', 'emaildate', get_string('emailreminderondate', 'scheduler'), array('optional'  => true));
         $mform->setDefault('remindersel', -1);
 
-        // Slot comments
-        $mform->addElement('editor', 'notes', get_string('comments', 'scheduler'), array('rows' => 3, 'columns' => 60), array('collapsed' => true));
-        $mform->setType('notes', PARAM_RAW); // must be PARAM_RAW for rich text editor content
+        // Slot comments.
+        $mform->addElement('editor', 'notes_editor', get_string('comments', 'scheduler'), array('rows' => 3, 'columns' => 60), $noteoptions);
+        $mform->setType('notes', PARAM_RAW); // Must be PARAM_RAW for rich text editor content.
 
-        // Appointments
+        // Appointments.
 
         $repeatarray = array();
         $grouparray = array();
@@ -185,9 +189,16 @@ class scheduler_editslot_form extends scheduler_slotform_base {
 
         $repeatarray[] = $mform->createElement('group', 'studgroup', get_string('student', 'scheduler'), $grouparray, null, false);
 
-        // Appointment notes
-        $repeatarray[] = $mform->createElement('editor', 'appointmentnote', get_string('appointmentnotes', 'scheduler'),
-                          array('rows' => 3, 'columns' => 60), array('collapsed' => true));
+        // Appointment notes, visible to teacher and/or student.
+
+        if ($this->scheduler->uses_appointmentnotes()) {
+            $repeatarray[] = $mform->createElement('editor', 'appointmentnote_editor', get_string('appointmentnote', 'scheduler'),
+                                                   array('rows' => 3, 'columns' => 60), $noteoptions);
+        }
+        if ($this->scheduler->uses_teachernotes()) {
+            $repeatarray[] = $mform->createElement('editor', 'teachernote_editor', get_string('teachernote', 'scheduler'),
+                                                   array('rows' => 3, 'columns' => 60), $noteoptions);
+        }
 
         if (isset($this->_customdata['repeats'])) {
             $repeatno = $this->_customdata['repeats'];
@@ -201,7 +212,8 @@ class scheduler_editslot_form extends scheduler_slotform_base {
         $repeateloptions = array();
         $nostudcheck = array('studentid', 'eq', 0);
         $repeateloptions['attended']['disabledif'] = $nostudcheck;
-        $repeateloptions['appointmentnote']['disabledif'] = $nostudcheck;
+        $repeateloptions['appointmentnote_editor']['disabledif'] = $nostudcheck;
+        $repeateloptions['teachernote_editor']['disabledif'] = $nostudcheck;
         $repeateloptions['grade']['disabledif'] = $nostudcheck;
         $repeateloptions['appointhead']['expanded'] = true;
 
