@@ -52,6 +52,10 @@ class scheduler_appointment extends mvc_child_record_model {
         scheduler_update_grades($scheddata, $studid);
     }
 
+    public function get_slot() {
+        return $this->get_parent();
+    }
+
     public function get_scheduler() {
         return $this->get_parent()->get_parent();
     }

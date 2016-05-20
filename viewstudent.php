@@ -104,31 +104,7 @@ if ($subpage == 'thisappointment') {
     if ($mform->is_cancelled()) {
         redirect($returnurl);
     } else if ($formdata = $mform->get_data()) {
-        $data = $mform->extract_appointment_data($formdata);
-        if ($scheduler->uses_appointmentnotes()) {
-            $editor = $data->appointmentnote_editor;
-            $appointment->appointmentnote = file_save_draft_area_files($editor['itemid'], $context->id,
-                            'mod_scheduler', 'appointmentnote', $appointment->id,
-                            $mform->noteoptions, $editor['text']);
-            $appointment->appointmentnoteformat = $editor['format'];
-        }
-        if ($scheduler->uses_teachernotes()) {
-            $editor = $data->teachernote_editor;
-            $appointment->teachernote = file_save_draft_area_files($editor['itemid'], $context->id,
-                            'mod_scheduler', 'teachernote', $appointment->id,
-                            $mform->noteoptions, $editor['text']);
-            $appointment->teachernoteformat = $editor['format'];
-        }
-        if ($distribute && isset($formdata->distribute)) {
-            foreach ($slot->get_appointments() as $otherapp) {
-                $otherapp->set_data($data);
-            }
-            // TODO distribute embedded files
-            $slot->save();
-        } else {
-            $appointment->set_data($data);
-            $appointment->save();
-        }
+        $mform->save_appointment_data($formdata, $appointment);
         redirect($returnurl);
     } else {
         $mform->display();

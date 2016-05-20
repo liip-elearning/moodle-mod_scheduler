@@ -24,12 +24,16 @@ abstract class scheduler_slotform_base extends moodleform {
     protected $context;
     protected $usergroups;
     protected $hasduration = false;
+    protected $noteoptions;
 
     public function __construct($action, scheduler_instance $scheduler, $cm, $usergroups, $customdata=null) {
         $this->scheduler = $scheduler;
         $this->cm = $cm;
         $this->context = context_module::instance($cm->id);
         $this->usergroups = $usergroups;
+        $this->noteoptions = array('trusttext' => true, 'maxfiles' => -1, 'maxbytes' => 0,
+                                   'context' => $this->context, 'subdirs' => false);
+
         parent::__construct($action, $customdata);
     }
 
@@ -112,6 +116,7 @@ abstract class scheduler_slotform_base extends moodleform {
 
         return $errors;
     }
+
 }
 
 class scheduler_editslot_form extends scheduler_slotform_base {
@@ -307,6 +312,132 @@ class scheduler_editslot_form extends scheduler_slotform_base {
             }
         }
         return $errors;
+    }
+
+    public function prepare_formdata(scheduler_slot $slot) {
+
+        $context = $slot->get_scheduler()->get_context();
+
+        $data = $slot->get_data();
+        $data->exclusivityenable = ($data->exclusivity > 0);
+
+        $data = file_prepare_standard_editor($data, "notes", $this->noteoptions, $context,
+                'mod_scheduler', 'slotnote', $slot->id);
+        $data->notes = array();
+        $data->notes['text'] = $slot->notes;
+        $data->notes['format'] = $slot->notesformat;
+
+        if ($slot->emaildate < 0) {
+            $data->emaildate = 0;
+        }
+
+        $i = 0;
+        foreach ($slot->get_appointments() as $appointment) {
+            $data->studentid[$i] = $appointment->studentid;
+            $data->attended[$i] = $appointment->attended;
+
+            $draftid = file_get_submitted_draft_itemid('appointmentnote');
+            $currenttext = file_prepare_draft_area($draftid, $context->id,
+                    'mod_scheduler', 'appointmentnote', $appointment->id,
+                    $this->noteoptions, $appointment->appointmentnote);
+            $data->appointmentnote_editor[$i] = array('text' => $currenttext,
+                    'format' => $appointment->appointmentnoteformat,
+                    'itemid' => $draftid);
+
+            $draftid = file_get_submitted_draft_itemid('teachernote');
+            $currenttext = file_prepare_draft_area($draftid, $context->id,
+                    'mod_scheduler', 'teachernote', $appointment->id,
+                    $this->noteoptions, $appointment->teachernote);
+            $data->teachernote_editor[$i] = array('text' => $currenttext,
+                    'format' => $appointment->teachernoteformat,
+                    'itemid' => $draftid);
+
+            $data->grade[$i] = $appointment->grade;
+            $i++;
+        }
+
+        return $data;
+    }
+
+    public function save_slot($slotid, $data) {
+
+        $context = $this->scheduler->get_context();
+
+        if ($slotid) {
+            $slot = scheduler_slot::load_by_id($slotid, $this->scheduler);
+        } else {
+            $slot = new scheduler_slot($this->scheduler);
+        }
+
+        // Set data fields from input form.
+        $slot->starttime = $data->starttime;
+        $slot->duration = $data->duration;
+        $slot->exclusivity = $data->exclusivityenable ? $data->exclusivity : 0;
+        $slot->teacherid = $data->teacherid;
+        $slot->appointmentlocation = $data->appointmentlocation;
+        $slot->hideuntil = $data->hideuntil;
+        $slot->emaildate = $data->emaildate;
+        $slot->timemodified = time();
+
+        if (!$slotid) {
+            $slot->save(); // Make sure that a new slot has a slot id before proceeding.
+        }
+
+        $editor = $data->notes_editor;
+        $slot->notes = file_save_draft_area_files($editor['itemid'], $context->id, 'mod_scheduler', 'slotnote', $slotid,
+                $this->noteoptions, $editor['text']);
+        $slot->notesformat = $editor['format'];
+
+        $currentapps = $slot->get_appointments();
+        $processedstuds = array();
+        for ($i = 0; $i < $data->appointment_repeats; $i++) {
+            if ($data->studentid[$i] > 0) {
+                $app = null;
+                foreach ($currentapps as $currentapp) {
+                    if ($currentapp->studentid == $data->studentid[$i]) {
+                        $app = $currentapp;
+                        $processedstuds[] = $currentapp->studentid;
+                    }
+                }
+                if ($app == null) {
+                    $app = $slot->create_appointment();
+                    $app->studentid = $data->studentid[$i];
+                    $app->save();
+                }
+                $app->attended = isset($data->attended[$i]);
+
+                if (isset($data->grade)) {
+                    $selgrade = $data->grade[$i];
+                    $app->grade = ($selgrade >= 0) ? $selgrade : null;
+                }
+
+                if ($this->scheduler->uses_appointmentnotes()) {
+                    $editor = $data->appointmentnote_editor[$i];
+                    $app->appointmentnote = file_save_draft_area_files($editor['itemid'], $context->id,
+                            'mod_scheduler', 'appointmentnote', $app->id,
+                            $this->noteoptions, $editor['text']);
+                    $app->appointmentnoteformat = $editor['format'];
+                }
+                if ($this->scheduler->uses_teachernotes()) {
+                    $editor = $data->teachernote_editor[$i];
+                    $app->teachernote = file_save_draft_area_files($editor['itemid'], $context->id,
+                            'mod_scheduler', 'teachernote', $app->id,
+                            $this->noteoptions, $editor['text']);
+                    $app->teachernoteformat = $editor['format'];
+                }
+            }
+        }
+        foreach ($currentapps as $currentapp) {
+            if (!in_array($currentapp->studentid, $processedstuds)) {
+                $slot->remove_appointment($currentapp);
+            }
+        }
+
+        $slot->save();
+
+        $slot = $this->scheduler->get_slot($slot->id);
+
+        return $slot;
     }
 }
 
